@@ -1,0 +1,6 @@
+pearlmine.conf
+logs/
+miner/
+dl/
+__pycache__/
+*.pyc

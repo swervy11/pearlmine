@@ -1,0 +1,11 @@
+[Unit]
+Description=pearlmine: optional fan curve while mining
+PartOf=pearl-miner.service
+After=pearl-gpu-tune.service
+
+[Service]
+Type=simple
+EnvironmentFile=@DIR@/pearlmine.conf
+ExecStart=/usr/bin/env python3 @DIR@/lib/fan.py
+Restart=on-failure
+RestartSec=10

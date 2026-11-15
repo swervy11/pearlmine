@@ -1,0 +1,6 @@
+[Unit]
+Description=pearlmine: auto-mode scheduler (mine in the configured windows while the GPU is free)
+
+[Service]
+Type=oneshot
+ExecStart=@DIR@/lib/guard.sh

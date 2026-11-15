@@ -1,0 +1,9 @@
+[Unit]
+Description=pearlmine: optional GPU tuning while mining
+Before=pearl-miner.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=@DIR@/lib/gpu-tune.sh apply
+ExecStop=@DIR@/lib/gpu-tune.sh reset

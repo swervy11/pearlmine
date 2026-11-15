@@ -1,0 +1,56 @@
+# pearlmine settings. `pearlmine setup` copies this file to pearlmine.conf.
+# Format: one KEY=value per line, comments on their own lines. Times are 24h HH:MM in the
+# machine's local time. Auto mode picks up changes at its next 2-minute check; for the
+# miner, tuning and fan settings run `pearlmine restart`.
+
+# ---- Required -------------------------------------------------------------
+# Your PUBLIC Pearl receive address (starts with prl1p, 63 characters).
+# Never put seed words, private keys or passwords in this file.
+PRL_WALLET=
+
+# ---- Miner ----------------------------------------------------------------
+# Name shown for this machine on the pool page.
+PRL_WORKER=rig1
+PRL_POOL=pool.pearlhash.xyz:9000
+# The miner pauses a GPU at TEMP_LIMIT and resumes it at TEMP_RESUME (degrees C).
+TEMP_LIMIT=82
+TEMP_RESUME=65
+# Extra flags passed straight to the miner, for example to pick devices on a multi-GPU rig.
+MINER_EXTRA_ARGS=""
+
+# ---- Auto mode: when to mine ------------------------------------------------
+# Every night. A window may cross midnight.
+NIGHT_START=22:00
+NIGHT_END=06:00
+# Optional second window on chosen days (1=Mon ... 7=Sun), for example while you are at work.
+# Set DAY_WINDOW=1 to turn it on.
+DAY_WINDOW=0
+DAY_WINDOW_DAYS="1 2 3 4 5"
+DAY_START=09:00
+DAY_END=17:00
+
+# ---- Auto mode: share the GPU (NVIDIA only) ---------------------------------
+# 1 = stop mining while another program is computing on the GPU (AI models, renders,
+# other CUDA jobs) and start again when it is gone. 0 = follow the time windows only.
+PAUSE_WHEN_GPU_BUSY=1
+# Programs that should NOT count as "the GPU is in use": a regular expression matched
+# against the process name, for example "ollama|my-background-service".
+IGNORE_GPU_PROCS=""
+
+# ---- GPU tuning while mining (NVIDIA only, all optional) --------------------
+# Which GPUs the tuning, fan curve and busy check apply to: all, or indexes like "0 1".
+GPUS=all
+# Leave a setting empty to not touch it. Everything is put back when mining stops.
+# Power cap in watts. Must be inside the range your card reports (see: nvidia-smi -q -d POWER).
+POWER_LIMIT_W=
+# Lock the core / memory clock in MHz. Wrong values cost hashrate or stability; start with
+# the power cap alone. Not every card and driver supports clock locking.
+CORE_CLOCK_MHZ=
+MEM_CLOCK_MHZ=
+
+# ---- Fan curve while mining (NVIDIA only, optional) -------------------------
+# temp:percent points, lowest first. Empty = the card controls its own fans.
+# Example: "50:45 60:55 65:65 70:75 75:85 80:100"
+FAN_CURVE=""
+# The fans are never driven below this percentage.
+FAN_MIN_PCT=30

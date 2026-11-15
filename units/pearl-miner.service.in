@@ -1,0 +1,22 @@
+[Unit]
+Description=pearlmine: Pearl (PRL) GPU miner
+After=network-online.target pearl-gpu-tune.service
+Wants=network-online.target pearl-fan.service
+Requires=pearl-gpu-tune.service
+BindsTo=pearl-gpu-tune.service
+
+[Service]
+Type=simple
+User=@USER@
+WorkingDirectory=@DIR@
+ExecStart=@DIR@/lib/run-miner.sh
+Restart=on-failure
+RestartSec=15
+# the miner exits 1 when asked to stop; do not count scheduled stops as failures
+SuccessExitStatus=1 SIGTERM
+# exit 2 = bad config or miner missing; retrying will not help
+RestartPreventExitStatus=2
+Nice=10
+
+[Install]
+WantedBy=multi-user.target

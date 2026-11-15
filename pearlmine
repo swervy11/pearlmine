@@ -1,0 +1,228 @@
+#!/bin/bash
+# pearlmine - simple on/off/schedule control for Pearl (PRL) GPU mining on Linux.
+#
+#   pearlmine setup     first run: create pearlmine.conf and download the miner
+#   pearlmine auto      mine only inside your time windows, and only while the GPU is free
+#   pearlmine on        mine 24/7 (survives reboot)
+#   pearlmine off       stop everything and put the GPU back to its normal settings
+#   pearlmine status    mode, hashrate, shares, GPU temperature and power
+#   pearlmine check     show what the scheduler would decide right now (changes nothing)
+#   pearlmine restart   restart the miner in its current mode (after config changes)
+#   pearlmine log       follow the live miner log (Ctrl+C to exit)
+#   pearlmine history   what auto mode did in the last two days
+#   pearlmine balance   pool credits and payouts for your address (pearlhash.xyz)
+#   pearlmine update    install the newest miner release; "update 0.51.6" picks a version
+#   pearlmine uninstall remove the systemd units (keeps this folder)
+set -euo pipefail
+
+DIR="$(cd "$(dirname "$(readlink -f "$0")")" && pwd)"
+CONF="$DIR/pearlmine.conf"
+LOG="$DIR/logs/miner.log"
+SD=/etc/systemd/system
+UNITS=(pearl-gpu-tune.service pearl-miner.service pearl-fan.service pearl-auto.service pearl-auto.timer)
+MINER_REPO="andru-kun/wildrig-multi"
+
+die() { echo "pearlmine: $*" >&2; exit 1; }
+
+need_conf() {
+  [ -f "$CONF" ] || die "no pearlmine.conf yet. Run: pearlmine setup"
+  # shellcheck disable=SC1090
+  source "$CONF"
+  [[ "${PRL_WALLET:-}" =~ ^prl1p[0-9a-z]{58}$ ]] || die "PRL_WALLET in pearlmine.conf is not a 63-character prl1p address"
+}
+
+need_miner() { [ -x "$DIR/miner/current/wildrig-multi" ] || die "miner not installed. Run: pearlmine setup"; }
+
+# Unit files are templates; fill in this folder and this user, install only if they changed.
+render_units() {
+  local out=$1 u
+  for u in "${UNITS[@]}"; do
+    sed -e "s#@DIR@#$DIR#g" -e "s#@USER@#$(id -un)#g" "$DIR/units/$u.in" > "$out/$u"
+  done
+}
+
+# Folder the installed units point at ("" if none are installed).
+installed_dir() { sed -n 's/^WorkingDirectory=//p' "$SD/pearl-miner.service" 2>/dev/null | head -1; }
+# True when the installed units belong to this folder.
+owned() { [ "$(installed_dir)" = "$DIR" ]; }
+
+do_install() {
+  local tmp need=0 u other
+  other=$(installed_dir)
+  if [ -n "$other" ] && [ "$other" != "$DIR" ]; then
+    echo "pearlmine units from another folder are already installed:"
+    echo "  $other"
+    read -rp "Replace them with the ones from this folder? [y/N] " yn
+    [[ "$yn" =~ ^[Yy]$ ]] || die "left the existing units alone"
+  fi
+  tmp=$(mktemp -d); trap 'rm -rf "$tmp"' RETURN
+  render_units "$tmp"
+  for u in "${UNITS[@]}"; do cmp -s "$tmp/$u" "$SD/$u" 2>/dev/null || need=1; done
+  (( need )) || return 0
+  echo "Installing systemd units (needs sudo)..."
+  for u in "${UNITS[@]}"; do sudo install -m 644 "$tmp/$u" "$SD/$u"; done
+  sudo systemctl daemon-reload
+}
+
+mode() {
+  if systemctl is-enabled --quiet pearl-auto.timer 2>/dev/null; then echo auto
+  elif systemctl is-enabled --quiet pearl-miner.service 2>/dev/null; then echo "24/7"
+  else echo off; fi
+}
+
+fetch_miner() {   # $1 = version tag, or empty for latest
+  local want=${1:-} path rel ver url sha tgz cur=""
+  SWITCHED=0
+  [ -L "$DIR/miner/current" ] && cur=$(basename "$(readlink "$DIR/miner/current")")
+  if [ -n "$want" ]; then path="tags/$want"; else path=latest; fi
+  rel=$(curl -fsSL "https://api.github.com/repos/$MINER_REPO/releases/$path") \
+    || die "could not read release ${want:-latest} from GitHub (does that version exist?)"
+  read -r ver url sha < <(python3 -c '
+import json, sys
+r = json.load(sys.stdin)
+a = [x for x in r["assets"] if x["name"].startswith("wildrig-multi-linux-")][0]
+print(r["tag_name"], a["browser_download_url"], (a.get("digest") or "").removeprefix("sha256:") or "-")' <<<"$rel")
+  echo "Installed: ${cur:-none}   Available: $ver"
+  [ "$ver" = "$cur" ] && { echo "Already on $ver."; return 0; }
+  [ "$sha" != "-" ] || die "release $ver publishes no sha256 digest - refusing to install it"
+  mkdir -p "$DIR/dl" "$DIR/miner/$ver"
+  tgz="$DIR/dl/${url##*/}"
+  echo "Downloading $ver ..."
+  curl -fsSL -o "$tgz" "$url"
+  echo "$sha  $tgz" | sha256sum -c - >/dev/null || { rm -f "$tgz"; die "checksum mismatch - download deleted, nothing changed"; }
+  echo "Checksum OK."
+  tar -xzf "$tgz" -C "$DIR/miner/$ver"
+  [ -x "$DIR/miner/$ver/wildrig-multi" ] || die "archive did not contain wildrig-multi"
+  if ! "$DIR/miner/$ver/wildrig-multi" --print-devices 2>&1 | grep -q 'GPU #'; then
+    die "miner $ver does not detect any GPU on this machine - not switching to it"
+  fi
+  ln -sfn "$ver" "$DIR/miner/current"
+  SWITCHED=1
+  echo "Miner $ver is now active.${cur:+ $cur is kept; roll back with: pearlmine update $cur}"
+}
+
+case "${1:-status}" in
+  setup)
+    if [ ! -f "$CONF" ]; then
+      install -m 600 "$DIR/pearlmine.conf.example" "$CONF"
+      echo "Created pearlmine.conf."
+    fi
+    [ -x "$DIR/miner/current/wildrig-multi" ] || fetch_miner ""
+    # shellcheck disable=SC1090
+    source "$CONF"
+    if [[ "${PRL_WALLET:-}" =~ ^prl1p[0-9a-z]{58}$ ]]; then
+      echo "Ready. Start with: pearlmine auto   (or: pearlmine on)"
+    else
+      echo "Next: open pearlmine.conf, set PRL_WALLET to your public receive address, then run: pearlmine auto"
+    fi
+    ;;
+  auto|night)
+    need_conf; need_miner; do_install
+    sudo systemctl disable pearl-miner.service 2>/dev/null || true   # not at boot; the scheduler decides
+    sudo systemctl enable --now pearl-auto.timer
+    sudo systemctl start pearl-auto.service                          # decide right now
+    echo "Auto mode on: nightly ${NIGHT_START}-${NIGHT_END}$( (( ${DAY_WINDOW:-0} )) && echo ", plus ${DAY_START}-${DAY_END} on days ${DAY_WINDOW_DAYS}") (system local time)$( (( ${PAUSE_WHEN_GPU_BUSY:-1} )) && echo ", paused while another program uses the GPU")."
+    ;;
+  on)
+    need_conf; need_miner; do_install
+    sudo systemctl disable --now pearl-auto.timer 2>/dev/null || true
+    sudo systemctl enable pearl-miner.service
+    sudo systemctl restart pearl-miner.service
+    echo "Mining on, 24/7 (starts again after a reboot)."
+    ;;
+  off)
+    sudo systemctl disable --now pearl-auto.timer 2>/dev/null || true
+    sudo systemctl disable --now pearl-miner.service 2>/dev/null || true
+    sudo systemctl stop pearl-gpu-tune.service 2>/dev/null || true
+    echo "Mining off. GPU settings restored."
+    ;;
+  status)
+    if [ -n "$(installed_dir)" ] && ! owned; then
+      echo "Note:   the installed units belong to another folder ($(installed_dir)); mode and state below are theirs."
+    fi
+    if systemctl is-active --quiet pearl-miner.service; then R="mining now"; else R="not mining"; fi
+    echo "Mode:   $(mode) ($R)"
+    if command -v nvidia-smi >/dev/null; then
+      nvidia-smi --query-gpu=index,name,temperature.gpu,power.draw,power.limit,utilization.gpu,fan.speed --format=csv,noheader \
+        | awk -F', ' '{printf "GPU %s:  %s  %s C  %s / %s  load %s  fan %s\n",$1,$2,$3,$4,$5,$6,$7}'
+      if systemctl is-active --quiet pearl-fan.service; then echo "Fans:   pearlmine fan curve"; else echo "Fans:   card automatic"; fi
+    else
+      echo "GPU:    no nvidia-smi found (tuning, fan curve and busy detection are NVIDIA-only)"
+    fi
+    if [ -f "$LOG" ]; then
+      line=$(sed -E 's/\x1b\[[0-9;]*m//g' "$LOG" | grep -E '\] +10s:' | tail -1 || true)
+      H=$(grep -oE '[0-9.]+ [kMGTP]?H/s' <<<"$line" | head -1 || true)
+      A=$(grep -oE 'Accepted: +[0-9]+' <<<"$line" | grep -oE '[0-9]+' || true)
+      echo "Miner:  ${H:-no hashrate yet}   accepted shares: ${A:-0}   ($(basename "$(readlink "$DIR/miner/current" 2>/dev/null || echo '?')"))"
+    else
+      echo "Miner:  no log yet"
+    fi
+    ;;
+  check)
+    need_conf
+    PEARLMINE_DRY_RUN=1 "$DIR/lib/guard.sh"
+    ;;
+  log)     [ -f "$LOG" ] || die "no log yet"; tail -f "$LOG" ;;
+  history) journalctl -u pearl-auto.service -u pearl-miner.service --since "2 days ago" --no-pager -o short \
+             | grep -E 'pearlmine:|Started|Stopped' | tail -30 ;;
+  restart)
+    need_conf; need_miner; do_install
+    m=$(mode)
+    if systemctl is-active --quiet pearl-miner.service; then
+      sudo systemctl restart pearl-miner.service
+      echo "Miner restarted (mode: $m)."
+    elif [[ $m == auto ]]; then
+      sudo systemctl start pearl-auto.service
+      echo "Miner was not running; scheduler re-checked. Miner is now: $(systemctl is-active pearl-miner.service 2>/dev/null || true)"
+    else
+      echo "Mining is off - nothing to restart. Use: pearlmine on   or: pearlmine auto"
+    fi
+    ;;
+  update)
+    fetch_miner "${2:-}"
+    if (( SWITCHED )) && owned && systemctl is-active --quiet pearl-miner.service; then
+      sudo systemctl restart pearl-miner.service && echo "Miner restarted."
+    fi
+    ;;
+  balance)
+    need_conf
+    python3 - "$PRL_WALLET" <<'PY'
+import json, sys, urllib.request
+a = sys.argv[1]
+def get(u):
+    req = urllib.request.Request(u, headers={"User-Agent": "pearlmine"})
+    return json.load(urllib.request.urlopen(req, timeout=15))
+try:
+    acct = get(f"https://pearlhash.xyz/api/account/{a}")
+    price = get("https://pearlhash.xyz/api/pearl-price").get("usd") or 0
+except Exception as e:
+    sys.exit(f"Pool lookup failed: {e}")
+tx = acct.get("balance_transactions") or []
+def amt(t):
+    for k in ("amount", "value", "prl", "credit"):
+        if isinstance(t, dict) and isinstance(t.get(k), (int, float)):
+            return t[k]
+    return 0
+credited = sum(amt(t) for t in tx if amt(t) > 0)
+paid = -sum(amt(t) for t in tx if amt(t) < 0)
+workers = acct.get("connected_workers") or []
+hr = sum(g.get("hashrate", 0) for w in workers for g in w.get("gpu_info", []))
+print(f"Pool (pearlhash.xyz):  {len(workers)} worker(s) online, {hr/1e12:.1f} TH/s")
+print(f"  credited:        {credited:,.4f} PRL")
+print(f"  paid out:        {paid:,.4f} PRL")
+print(f"  pending at pool: {credited-paid:,.4f} PRL")
+print(f"  price:           ${price:,.4f} per PRL  (pending is about ${(credited-paid)*price:,.2f})")
+print(f"Pool page:  https://pearlhash.xyz/account/{a}")
+print(f"On-chain:   https://explorer.pearlresearch.ai/address/{a}?network=mainnet")
+PY
+    ;;
+  uninstall)
+    sudo systemctl disable --now pearl-auto.timer pearl-miner.service 2>/dev/null || true
+    sudo systemctl stop pearl-gpu-tune.service pearl-fan.service 2>/dev/null || true
+    for u in "${UNITS[@]}"; do sudo rm -f "$SD/$u"; done
+    sudo systemctl daemon-reload
+    echo "Units removed. This folder is untouched; delete it yourself if you want."
+    ;;
+  -h|--help|help) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) sed -n '2,16p' "$0" | sed 's/^# \{0,1\}//'; exit 1 ;;
+esac
