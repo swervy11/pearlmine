@@ -1,6 +1,6 @@
 # pearlmine
 
-One command to run a Pearl (PRL) GPU miner on Linux without giving up your graphics card.
+One command to run a Pearl GPU miner on Linux without giving up your graphics card.
 
 ```
 pearlmine auto     # mine at night, stop the moment something else needs the GPU
