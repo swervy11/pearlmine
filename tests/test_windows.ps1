@@ -67,6 +67,25 @@ Set-Content -LiteralPath (Join-Path $sd 'mode') -Value 'banana'
 Check 'mode junk -> null' ($null -eq (Get-Mode $sd)) $true
 Remove-Item -Recurse -Force -LiteralPath $sd
 
+# Setup prompt helpers
+$seed = 'abandon ability able about above absent absorb abstract absurd abuse access accident'
+Check 'seed words detected' (Test-SeedLike $seed) $true
+Check 'address is not seed-like' (Test-SeedLike ('prl1p' + ('q' * 58))) $false
+Check 'short phrase not seed-like' (Test-SeedLike 'my wallet') $false
+Check 'worker from computer name' (ConvertTo-WorkerName 'DESKTOP-AB12 CD') 'desktop-ab12-cd'
+Check 'worker trims junk' (ConvertTo-WorkerName '--Gaming PC!!') 'gaming-pc'
+Check 'worker empty -> default' (ConvertTo-WorkerName '!!!') 'pc1'
+Check 'worker max 32' ((ConvertTo-WorkerName ('x' * 50)).Length) 32
+$cf = Join-Path ([IO.Path]::GetTempPath()) ("pm-set-" + [guid]::NewGuid().ToString('N') + '.conf')
+Set-Content -LiteralPath $cf -Value @('# c', 'PRL_WALLET=', 'PRL_WORKER=pc1', 'X=1')
+Set-ConfValue $cf 'PRL_WALLET' 'prl1pabc'
+Set-ConfValue $cf 'NEWKEY' 'v'
+$after = @(Get-Content -LiteralPath $cf)
+Remove-Item -LiteralPath $cf
+Check 'set replaces in place' $after[1] 'PRL_WALLET=prl1pabc'
+Check 'set keeps others' (($after[0], $after[2], $after[3]) -join '|') '# c|PRL_WORKER=pc1|X=1'
+Check 'set appends new key' $after[-1] 'NEWKEY=v'
+
 # Task name is per user and safe
 Check 'task name per user' ($TaskName -like 'pearlmine-*') $true
 Check 'task name has no bad chars' ($TaskName -notmatch '[\\/:*?"<>|]') $true

@@ -168,12 +168,62 @@ function Invoke-FetchMiner([string]$Want) {
 
 # ---- commands ----------------------------------------------------------------
 
+# Prompts only when a person is at the keyboard. PEARLMINE_NO_PROMPT=1 turns them off;
+# PEARLMINE_PROMPT_STDIN=1 reads answers from piped input (used by the tests).
+function Test-CanPrompt {
+    if ($env:PEARLMINE_PROMPT_STDIN -eq '1') { return $true }
+    if ($env:PEARLMINE_NO_PROMPT -eq '1') { return $false }
+    try { return ([Environment]::UserInteractive -and -not [Console]::IsInputRedirected) } catch { return $false }
+}
+
+function Read-Answer([string]$Prompt) {
+    if ($env:PEARLMINE_PROMPT_STDIN -eq '1') {
+        Write-Host -NoNewline "${Prompt}: "
+        $line = [Console]::In.ReadLine(); Write-Host ''
+        return "$line"
+    }
+    return [string](Read-Host $Prompt)
+}
+
+# Ask for the receive address (and a worker name) and save them in pearlmine.conf.
+# The typed text is never echoed back, in case someone pastes seed words by mistake.
+function Invoke-WalletPrompt {
+    Write-Host ''
+    Write-Host 'pearlmine needs your Pearl wallet''s public receive address. It does not create a wallet.'
+    Write-Host 'No wallet yet? Get the official Pearl Wallet first and write its seed words on paper:'
+    Write-Host '  https://github.com/pearl-research-labs/pearl/releases'
+    Write-Host 'Never type seed words here or anywhere else.'
+    for ($try = 0; $try -lt 3; $try++) {
+        $a = (Read-Answer 'Receive address (starts with prl1p), or press Enter to skip').Trim()
+        if (-not $a) { Write-Host "Skipped. Add it later with: notepad `"$ConfPath`""; return }
+        if (Test-SeedLike $a) {
+            Write-Host 'That looks like seed words, not an address. Nothing was saved. Never share seed words with any program.' -ForegroundColor Red
+            continue
+        }
+        if (Test-Wallet $a.ToLowerInvariant()) {
+            Set-ConfValue $ConfPath 'PRL_WALLET' $a.ToLowerInvariant()
+            Write-Host 'Address saved.' -ForegroundColor Green
+            $def = ConvertTo-WorkerName "$env:COMPUTERNAME"
+            $w = (Read-Answer "Name for this computer on the pool page [$def]").Trim()
+            if (-not $w) { $w = $def }
+            if ($w -notmatch '^[A-Za-z0-9._-]{1,64}$') { Write-Host "Only letters, digits, dot, dash and underscore. Using $def."; $w = $def }
+            Set-ConfValue $ConfPath 'PRL_WORKER' $w
+            Write-Host "Worker name: $w"
+            return
+        }
+        Write-Host "That is not a Pearl address. It must start with prl1p and be 63 characters long (that was $($a.Length))." -ForegroundColor Yellow
+    }
+    Write-Host "No address saved. Add it later with: notepad `"$ConfPath`""
+}
+
 function Invoke-Setup {
     if (-not (Test-Path -LiteralPath $ConfPath)) {
         Copy-Item -LiteralPath (Join-Path $Root 'pearlmine.conf.example') -Destination $ConfPath
         Write-Host 'Created pearlmine.conf.'
     }
-    if (-not (Get-MinerExe)) { Invoke-FetchMiner '' }
+    # Ask before the miner download, so a Windows Security block cannot skip it.
+    if (-not (Test-Wallet (Get-Opt (Read-PearlConf) 'PRL_WALLET')) -and (Test-CanPrompt)) { Invoke-WalletPrompt }
+    if (-not (Get-MinerExe)) { Write-Host ''; Invoke-FetchMiner '' }
     $c = Read-PearlConf
     if (Test-Wallet (Get-Opt $c 'PRL_WALLET')) { Write-Host 'Ready. Start with: pearlmine auto   (or: pearlmine on)' }
     else {

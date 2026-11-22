@@ -6,6 +6,8 @@ $ErrorActionPreference = 'Stop'
 $repo = Split-Path -Parent $PSScriptRoot
 $shell = (Get-Process -Id $PID).Path
 $script:fail = 0; $script:n = 0
+. (Join-Path (Join-Path (Join-Path $repo 'windows') 'lib') 'common.ps1')
+function Read-PearlConfFile([string]$Path) { $c = Read-PearlConf $Path; if ($null -eq $c) { return @{} }; return $c }
 function Check([string]$Name, $Got, $Want) {
     $script:n++
     if ("$Got" -ne "$Want") { $script:fail++; Write-Host "FAIL  $Name  got '$Got' want '$Want'" }
@@ -50,6 +52,41 @@ try {
     $o = & $shell -NoProfile -ExecutionPolicy Bypass -File $cli check 2>&1 | Out-String
     Check 'check without config exit' $LASTEXITCODE 1
     Check 'check without config message' ($o -match 'no pearlmine.conf yet') $true
+
+    # Setup prompt: a fake installed miner so setup skips the download.
+    $fake = Join-Path (Join-Path $dest 'miner') '9.9.9'
+    New-Item -ItemType Directory -Force -Path $fake | Out-Null
+    Set-Content -LiteralPath (Join-Path $fake 'wildrig.exe') -Value 'stub'
+    Set-Content -LiteralPath (Join-Path (Join-Path $dest 'miner') 'current.txt') -Value '9.9.9'
+    $conf = Join-Path $dest 'pearlmine.conf'
+    $addr = 'prl1p' + ('q' * 58)
+    $seed = 'abandon ability able about above absent absorb abstract absurd abuse access accident'
+    $env:PEARLMINE_PROMPT_STDIN = '1'
+    try {
+        # seed words, then a wrong address, then the real one in capitals, then a worker name
+        $o = @($seed, 'prl1pshort', $addr.ToUpperInvariant(), 'gaming-rig') | & $shell -NoProfile -ExecutionPolicy Bypass -File $cli setup 2>&1 | Out-String
+        Check 'prompt setup exit' $LASTEXITCODE 0
+        $c2 = Read-PearlConfFile $conf
+        Check 'prompt saved address (lowercased)' $c2['PRL_WALLET'] $addr
+        Check 'prompt saved worker' $c2['PRL_WORKER'] 'gaming-rig'
+        Check 'prompt warned about seed words' ($o -match 'looks like seed words') $true
+        Check 'prompt explained bad address' ($o -match 'that was 10') $true
+        Check 'seed words never echoed' ($o -match 'abandon|absurd') $false
+        Check 'seed words never saved' ((Get-Content -LiteralPath $conf -Raw) -match 'abandon') $false
+        Check 'prompt points to wallet download' ($o -match 'pearl-research-labs/pearl/releases') $true
+        Check 'ready message after prompt' ($o -match 'Ready\. Start with') $true
+
+        # already configured: no prompt on a second run
+        $o = @() | & $shell -NoProfile -ExecutionPolicy Bypass -File $cli setup 2>&1 | Out-String
+        Check 'no prompt when address set' ($o -match 'Receive address') $false
+
+        # fresh config, Enter skips
+        Remove-Item -LiteralPath $conf
+        $o = @('') | & $shell -NoProfile -ExecutionPolicy Bypass -File $cli setup 2>&1 | Out-String
+        Check 'skip exit' $LASTEXITCODE 0
+        Check 'skip message' ($o -match 'Skipped') $true
+        Check 'skip leaves address empty' ((Read-PearlConfFile $conf)['PRL_WALLET']) ''
+    } finally { Remove-Item Env:\PEARLMINE_PROMPT_STDIN -ErrorAction SilentlyContinue }
 
     # A broken config is reported in full, not one problem at a time.
     Set-Content -LiteralPath (Join-Path $dest 'pearlmine.conf') -Value @('PRL_WALLET=x', 'PRL_WORKER=my pc')

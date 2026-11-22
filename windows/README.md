@@ -19,10 +19,14 @@ Open **PowerShell** (Start menu, type `powershell`; administrator is not needed)
 irm https://raw.githubusercontent.com/swervy11/pearlmine/main/windows/install.ps1 | iex
 ```
 
-This puts pearlmine in `%LOCALAPPDATA%\pearlmine`, adds it to your PATH, downloads the miner and checks its SHA-256. Then:
+This puts pearlmine in `%LOCALAPPDATA%\pearlmine` and adds it to your PATH. It then asks for:
 
-1. Run `notepad "$env:LOCALAPPDATA\pearlmine\pearlmine.conf"` and set `PRL_WALLET` to your public receive address. Give this PC its own `PRL_WORKER` name.
-2. Open a **new** terminal and run `pearlmine auto` (or `pearlmine on`).
+1. **Your wallet's receive address** (starts with `prl1p`). Paste it and press Enter. If you paste seed words by mistake, it refuses and saves nothing.
+2. **A name for this PC** on the pool page. Press Enter to use the computer's name.
+
+Finally it downloads the miner and checks its SHA-256. Then open a **new** terminal and run `pearlmine auto` (or `pearlmine on`).
+
+To skip the questions, press Enter at the address prompt. You can set `PRL_WALLET` and `PRL_WORKER` later with `notepad "$env:LOCALAPPDATA\pearlmine\pearlmine.conf"`.
 
 Running the install line again updates pearlmine. It keeps your config, miner and logs, and restarts mining if it was on. The line always installs the latest `main`; to pin a version, set `$env:PEARLMINE_REF = '<tag>'` first.
 

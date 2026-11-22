@@ -68,6 +68,32 @@ function Get-ConfProblems($Conf) {
     return $p
 }
 
+# Set KEY=value in a config file: replaces the first KEY= line, or appends one. Other lines are untouched.
+# Only call it with values already checked to be plain (addresses, worker names).
+function Set-ConfValue([string]$Path, [string]$Key, [string]$Value) {
+    $lines = @(Get-Content -LiteralPath $Path)
+    $done = $false
+    for ($i = 0; $i -lt $lines.Count; $i++) {
+        if (-not $done -and $lines[$i] -match "^\s*$([regex]::Escape($Key))\s*=") { $lines[$i] = "$Key=$Value"; $done = $true }
+    }
+    if (-not $done) { $lines += "$Key=$Value" }
+    [IO.File]::WriteAllLines($Path, [string[]]$lines)
+}
+
+# True when pasted text looks like a wallet's seed words (many plain words) rather than an address.
+function Test-SeedLike([string]$Text) {
+    $w = @($Text.Trim() -split '\s+' | Where-Object { $_ -match '^[A-Za-z]+$' })
+    return ($w.Count -ge 8)
+}
+
+# A pool worker name from a computer name: lowercase, only [a-z0-9._-], at most 32 characters.
+function ConvertTo-WorkerName([string]$Name, [string]$Default = 'pc1') {
+    $n = ($Name.ToLowerInvariant() -replace '[^a-z0-9._-]+', '-').Trim('-', '.', '_')
+    if ($n.Length -gt 32) { $n = $n.Substring(0, 32).Trim('-', '.', '_') }
+    if (-not $n) { return $Default }
+    return $n
+}
+
 # ---- schedule ------------------------------------------------------------
 
 function ConvertTo-Minutes([string]$HHMM) {
