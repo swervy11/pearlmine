@@ -1,0 +1,56 @@
+# pearlmine settings (Windows). `pearlmine setup` copies this file to pearlmine.conf.
+# Open it with: notepad "%LOCALAPPDATA%\pearlmine\pearlmine.conf"
+# Format: one KEY=value per line. Times are 24h HH:MM in this PC's local time.
+# The agent picks up schedule changes within 30 seconds; after changing miner settings
+# run `pearlmine restart`.
+
+# ---- Required -------------------------------------------------------------
+# Your PUBLIC Pearl receive address (starts with prl1p, 63 characters).
+# Never put seed words, private keys or passwords in this file.
+PRL_WALLET=
+
+# ---- Miner ----------------------------------------------------------------
+# Name shown for this machine on the pool page. Use a different one on each computer
+# (letters, digits, dot, dash, underscore).
+PRL_WORKER=pc1
+PRL_POOL=pool.pearlhash.xyz:9000
+# The miner pauses a GPU at TEMP_LIMIT and resumes it at TEMP_RESUME (degrees C).
+TEMP_LIMIT=82
+TEMP_RESUME=65
+# Extra flags passed straight to the miner, for example to pick devices on a multi-GPU PC.
+MINER_EXTRA_ARGS=""
+
+# ---- Pause for your own programs (on and auto mode) ---------------------------
+# Program names, separated by spaces. While any of them is running the miner stops, and it
+# starts again within 30 seconds of the last one closing. Use the name from Task Manager's
+# Details tab, with or without .exe. Example: "cs2 eldenring blender"
+PAUSE_FOR_PROGRAMS=""
+
+# ---- Auto mode: when to mine ------------------------------------------------
+# Every night. A window may cross midnight.
+NIGHT_START=22:00
+NIGHT_END=06:00
+# Optional second window on chosen days (1=Mon ... 7=Sun), for example while you are at work.
+# Set DAY_WINDOW=1 to turn it on.
+DAY_WINDOW=0
+DAY_WINDOW_DAYS="1 2 3 4 5"
+DAY_START=09:00
+DAY_END=17:00
+
+# ---- Auto mode: share the GPU (NVIDIA only) ---------------------------------
+# 1 = stop mining while another program is computing on the GPU (AI models, renders).
+# Off by default on Windows: desktop apps such as browsers can show up as GPU users and
+# would keep the miner off. Run `pearlmine check` to see what your PC reports, then add
+# the harmless ones to IGNORE_GPU_PROCS before turning this on.
+PAUSE_WHEN_GPU_BUSY=0
+# Programs that should NOT count as "the GPU is in use": a regular expression matched
+# against the program path, for example "chrome|msedge|explorer".
+IGNORE_GPU_PROCS=""
+
+# Which GPUs the busy check looks at: all, or indexes like "0 1".
+GPUS=all
+
+# ---- Power limit / fan curve -------------------------------------------------
+# Not managed on Windows (it would need a task with administrator rights running scripts
+# you can edit). Set a power limit with your card vendor's tool or MSI Afterburner, or until
+# the next reboot, from an Administrator terminal: nvidia-smi -pl 160

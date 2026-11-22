@@ -1,0 +1,42 @@
+name: tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - run: bash -n pearlmine lib/*.sh
+      - run: bash tests/test_guard.sh
+      - run: python3 tests/test_fan.py
+
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1  # v7.0.1
+      - name: Tests on Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tests\test_windows.ps1
+          if ($LASTEXITCODE) { exit 1 }
+          powershell -NoProfile -ExecutionPolicy Bypass -File tests\test_windows_cli.ps1
+          if ($LASTEXITCODE) { exit 1 }
+      - name: Tests on PowerShell 7
+        shell: pwsh
+        run: |
+          pwsh -NoProfile -File tests/test_windows.ps1
+          if ($LASTEXITCODE) { exit 1 }
+          pwsh -NoProfile -File tests/test_windows_cli.ps1
+          if ($LASTEXITCODE) { exit 1 }
+      - name: CLI smoke test (help, and a clean error without a config)
+        shell: cmd
+        run: |
+          call windows\pearlmine.cmd help || exit /b 1
+          call windows\pearlmine.cmd check && exit /b 1
+          exit /b 0

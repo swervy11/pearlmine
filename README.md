@@ -1,6 +1,6 @@
 # pearlmine
 
-One command to run a Pearl GPU miner on Linux without giving up your graphics card.
+One command to run a Pearl GPU miner on Linux or Windows without giving up your graphics card.
 
 ```
 pearlmine auto     # mine at night, stop the moment something else needs the GPU
@@ -9,7 +9,23 @@ pearlmine off      # stop and put the GPU back how it was
 pearlmine status
 ```
 
-It wraps [WildRig Multi](https://github.com/andru-kun/wildrig-multi) in a few small shell scripts and systemd units. There is no daemon of its own and nothing to compile.
+It wraps [WildRig Multi](https://github.com/andru-kun/wildrig-multi) in a few small scripts: shell scripts and systemd units on Linux, PowerShell and a Task Scheduler task on Windows. Nothing to compile.
+
+## Quick install
+
+**Windows 10 / 11.** Paste this into PowerShell (administrator not needed), then follow the [Windows guide](windows/README.md):
+
+```powershell
+irm https://raw.githubusercontent.com/swervy11/pearlmine/main/windows/install.ps1 | iex
+```
+
+**Linux (systemd):**
+
+```bash
+git clone https://github.com/swervy11/pearlmine.git && cd pearlmine && ./pearlmine setup
+```
+
+Both versions use the same commands and the same style of `pearlmine.conf`. The rest of this page covers Linux. The [Windows guide](windows/README.md#how-it-differs-from-linux) lists what differs.
 
 ## What it does
 
@@ -21,10 +37,12 @@ It wraps [WildRig Multi](https://github.com/andru-kun/wildrig-multi) in a few sm
 ## What it does not do
 
 - It never touches a wallet. It needs only your public receive address. There are no seed words, keys or passwords anywhere in it.
-- It does not detect games or desktop use. The busy check sees compute workloads, not graphics ones. If you game on the card, use the time windows or run `pearlmine off`.
+- It does not detect games or desktop use. The busy check sees compute workloads, not graphics ones. If you game on the card, use the time windows or run `pearlmine off`. (The Windows version can pause while programs you list are running: `PAUSE_FOR_PROGRAMS`.)
 - It does not pick settings for you. Out of the box it changes no power, clock or fan setting.
 
-## Requirements
+## Requirements (Linux)
+
+For Windows, see [windows/README.md](windows/README.md).
 
 - Linux with systemd, and `sudo` for installing the units
 - `bash`, `curl`, `python3`
@@ -43,6 +61,8 @@ It wraps [WildRig Multi](https://github.com/andru-kun/wildrig-multi) in a few sm
 The tuning, fan and busy-check features use `nvidia-smi` and the NVIDIA driver library. On a machine without them those features switch themselves off and the rest still runs. Any NVIDIA model should work; multi-GPU rigs are supported in the code but untested.
 
 ## Install
+
+Linux. For Windows, use the one-line installer in [windows/README.md](windows/README.md).
 
 ```bash
 git clone https://github.com/swervy11/pearlmine.git
@@ -142,16 +162,18 @@ The miner also has its own cut-out: it pauses a GPU at `TEMP_LIMIT` (82 °C by d
 
 - Three of the units run as root and read `pearlmine.conf`. Keep that file owned by you and not writable by anyone else. The scripts refuse a config that is group- or world-writable.
 - WildRig Multi is closed-source, third-party software, and it may charge a developer fee. pearlmine verifies that the download matches the published digest. It cannot tell you what the binary does. Read the miner's own documentation before running it.
-- Read the scripts before giving them sudo. They are short: about 530 lines in total.
+- Read the scripts before giving them sudo. They are short. (The Windows version never asks for administrator rights.)
 
 ## Tests
 
 ```bash
 bash tests/test_guard.sh      # auto-mode decisions for fixed times, days and GPU states
 python3 tests/test_fan.py     # fan-curve maths
+pwsh tests/test_windows.ps1       # Windows scheduling logic (also runs in Windows PowerShell 5.1)
+pwsh tests/test_windows_cli.ps1   # Windows installer + CLI entry point, into a temp folder
 ```
 
-Neither test touches a GPU or starts a miner.
+None of the tests touches a GPU or starts a miner. GitHub Actions runs them on Ubuntu and on Windows.
 
 ## Uninstall
 
