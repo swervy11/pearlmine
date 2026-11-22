@@ -102,9 +102,12 @@ wallet_prompt() {
     if [[ "$a" =~ ^prl1p[0-9a-z]{58}$ ]]; then
       set_conf PRL_WALLET "$a"
       echo "Address saved."
-      def=$(hostname -s 2>/dev/null | tr '[:upper:]' '[:lower:]' | tr -c 'a-z0-9._-' '-' | sed 's/^[-._]*//; s/[-._]*$//' | cut -c1-32)
+      # Worker names are public on the pool page, so suggest the GPU model, never the host or user name.
+      def=$(nvidia-smi --query-gpu=name --format=csv,noheader 2>/dev/null | head -1 | tr '[:upper:]' '[:lower:]' \
+            | sed -E 's/\b(nvidia|geforce|amd|radeon|intel|graphics|corporation)\b//g; s/[[:space:]]+//g; s/[^a-z0-9._-]+/-/g; s/^[-._]*//; s/[-._]*$//' | cut -c1-32 || true)
       [ -n "$def" ] || def=rig1
-      read -rp "Name for this computer on the pool page [$def]: " w || w=""
+      echo "Next, a name for this computer. It is shown publicly on the pool page, so do not use your real name."
+      read -rp "Worker name [$def]: " w || w=""
       w=${w:-$def}
       if ! [[ "$w" =~ ^[A-Za-z0-9._-]{1,64}$ ]]; then echo "Only letters, digits, dot, dash and underscore. Using $def."; w=$def; fi
       set_conf PRL_WORKER "$w"

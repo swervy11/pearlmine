@@ -72,8 +72,10 @@ $seed = 'abandon ability able about above absent absorb abstract absurd abuse ac
 Check 'seed words detected' (Test-SeedLike $seed) $true
 Check 'address is not seed-like' (Test-SeedLike ('prl1p' + ('q' * 58))) $false
 Check 'short phrase not seed-like' (Test-SeedLike 'my wallet') $false
-Check 'worker from computer name' (ConvertTo-WorkerName 'DESKTOP-AB12 CD') 'desktop-ab12-cd'
-Check 'worker trims junk' (ConvertTo-WorkerName '--Gaming PC!!') 'gaming-pc'
+Check 'worker from GPU 4070S' (ConvertTo-WorkerName 'NVIDIA GeForce RTX 4070 SUPER') 'rtx4070super'
+Check 'worker from GPU 3090' (ConvertTo-WorkerName 'NVIDIA GeForce RTX 3090') 'rtx3090'
+Check 'worker from AMD GPU' (ConvertTo-WorkerName 'AMD Radeon RX 7900 XTX') 'rx7900xtx'
+Check 'worker trims junk' (ConvertTo-WorkerName '--Big GPU!!') 'biggpu'
 Check 'worker empty -> default' (ConvertTo-WorkerName '!!!') 'pc1'
 Check 'worker max 32' ((ConvertTo-WorkerName ('x' * 50)).Length) 32
 $cf = Join-Path ([IO.Path]::GetTempPath()) ("pm-set-" + [guid]::NewGuid().ToString('N') + '.conf')
@@ -85,6 +87,25 @@ Remove-Item -LiteralPath $cf
 Check 'set replaces in place' $after[1] 'PRL_WALLET=prl1pabc'
 Check 'set keeps others' (($after[0], $after[2], $after[3]) -join '|') '# c|PRL_WORKER=pc1|X=1'
 Check 'set appends new key' $after[-1] 'NEWKEY=v'
+
+# nvidia-smi arguments arrive intact (a comma inside an unquoted argument used to split it in two).
+# PowerShell's argument binding is the same on every OS, so a POSIX stub is enough; it is skipped on
+# Windows, where a .cmd stub would re-split on commas itself.
+if (-not ($env:OS -eq 'Windows_NT')) {
+    $stubDir = Join-Path ([IO.Path]::GetTempPath()) ("pm-nvsmi-" + [guid]::NewGuid().ToString('N'))
+    New-Item -ItemType Directory -Force -Path $stubDir | Out-Null
+    $stub = Join-Path $stubDir 'nvidia-smi'
+    Set-Content -LiteralPath $stub -Value "#!/bin/sh`nfor a in `"`$@`"; do echo `"`$a`"; done"
+    & chmod +x $stub
+    $oldPath = $env:PATH
+    $env:PATH = $stubDir + [IO.Path]::PathSeparator + $env:PATH
+    try {
+        $got = @(Invoke-Nvsmi '-i' '0,1' '--query-gpu=name' '--format=csv,noheader')
+        Check 'nvsmi args intact' ($got -join ' ') '-i 0,1 --query-gpu=name --format=csv,noheader'
+        $raw = @(Get-RawGpuApps @{ GPUS = '0 1' })
+        Check 'compute-apps query intact' ($raw -join ' ') '-i 0,1 --query-compute-apps=process_name --format=csv,noheader'
+    } finally { $env:PATH = $oldPath; Remove-Item -Recurse -Force -LiteralPath $stubDir }
+}
 
 # Task name is per user and safe
 Check 'task name per user' ($TaskName -like 'pearlmine-*') $true

@@ -31,6 +31,14 @@ check "only one PRL_WALLET line" "$(grep -c '^PRL_WALLET=' "$T/pearlmine.conf")"
 out=$(PEARLMINE_PROMPT_STDIN=1 "$T/pearlmine" setup </dev/null 2>&1)
 check "no prompt once set" "$(grep -c 'needs your Pearl wallet' <<<"$out")" 0
 
+# Enter at the worker prompt: GPU model from a stub nvidia-smi, never the host name
+mkdir -p "$T/bin" && printf '#!/bin/sh\necho "NVIDIA GeForce RTX 4070 SUPER"\n' > "$T/bin/nvidia-smi" && chmod +x "$T/bin/nvidia-smi"
+rm "$T/pearlmine.conf"
+out=$(printf '%s\n\n' "$ADDR" | PATH="$T/bin:$PATH" PEARLMINE_PROMPT_STDIN=1 "$T/pearlmine" setup 2>&1)
+check "default worker from GPU" "$(val PRL_WORKER)" "rtx4070super"
+check "worker name marked public" "$(grep -c 'shown publicly on the pool page' <<<"$out")" 1
+check "host name not used" "$(grep -ci "$(hostname -s)" "$T/pearlmine.conf")" 0
+
 rm "$T/pearlmine.conf"
 out=$(printf '\n' | PEARLMINE_PROMPT_STDIN=1 "$T/pearlmine" setup 2>&1); rc=$?
 check "skip exit" "$rc" 0

@@ -22,7 +22,7 @@ irm https://raw.githubusercontent.com/swervy11/pearlmine/main/windows/install.ps
 This puts pearlmine in `%LOCALAPPDATA%\pearlmine` and adds it to your PATH. It then asks for:
 
 1. **Your wallet's receive address** (starts with `prl1p`). Paste it and press Enter. If you paste seed words by mistake, it refuses and saves nothing.
-2. **A name for this PC** on the pool page. Press Enter to use the computer's name.
+2. **A name for this PC** on the pool page. It is public, so don't use your real name. Press Enter to use the GPU model (for example `rtx4070super`).
 
 Finally it downloads the miner and checks its SHA-256. Then open a **new** terminal and run `pearlmine auto` (or `pearlmine on`).
 

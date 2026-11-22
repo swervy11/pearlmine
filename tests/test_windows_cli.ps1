@@ -76,6 +76,16 @@ try {
         Check 'prompt points to wallet download' ($o -match 'pearl-research-labs/pearl/releases') $true
         Check 'ready message after prompt' ($o -match 'Ready\. Start with') $true
 
+        Check 'prompt says worker name is public' ($o -match 'shown publicly on the pool page') $true
+
+        # Enter at the worker prompt takes the GPU-based default, never the computer name
+        Remove-Item -LiteralPath $conf
+        $env:COMPUTERNAME = 'JOHN-SMITH-PC'
+        $o = @($addr, '') | & $shell -NoProfile -ExecutionPolicy Bypass -File $cli setup 2>&1 | Out-String
+        $wk = (Read-PearlConfFile $conf)['PRL_WORKER']
+        Check 'default worker is generic or GPU model' ($wk -match '^(pc1|rtx[a-z0-9]+|rx[a-z0-9]+)$') $true
+        Check 'default worker never the computer name' ($wk -match 'john|smith') $false
+
         # already configured: no prompt on a second run
         $o = @() | & $shell -NoProfile -ExecutionPolicy Bypass -File $cli setup 2>&1 | Out-String
         Check 'no prompt when address set' ($o -match 'Receive address') $false

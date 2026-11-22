@@ -80,7 +80,7 @@ cd pearlmine
 ./pearlmine setup
 ```
 
-`setup` creates `pearlmine.conf`, asks for your wallet's receive address and a name for this computer on the pool page, then downloads the miner. Press Enter to skip the questions and set `PRL_WALLET` in `pearlmine.conf` later. Then run `./pearlmine auto` (or `./pearlmine on`). The first run asks for your sudo password to install five systemd units.
+`setup` creates `pearlmine.conf`, asks for your wallet's receive address and a name for this computer on the pool page (public, so not your real name; Enter uses the GPU model), then downloads the miner. Press Enter to skip the questions and set `PRL_WALLET` in `pearlmine.conf` later. Then run `./pearlmine auto` (or `./pearlmine on`). The first run asks for your sudo password to install five systemd units.
 
 To call it from anywhere: `ln -s "$PWD/pearlmine" ~/.local/bin/pearlmine`
 

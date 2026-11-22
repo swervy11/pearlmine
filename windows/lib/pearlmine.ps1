@@ -203,8 +203,9 @@ function Invoke-WalletPrompt {
         if (Test-Wallet $a.ToLowerInvariant()) {
             Set-ConfValue $ConfPath 'PRL_WALLET' $a.ToLowerInvariant()
             Write-Host 'Address saved.' -ForegroundColor Green
-            $def = ConvertTo-WorkerName "$env:COMPUTERNAME"
-            $w = (Read-Answer "Name for this computer on the pool page [$def]").Trim()
+            $def = Get-DefaultWorker
+            Write-Host 'Next, a name for this computer. It is shown publicly on the pool page, so do not use your real name.'
+            $w = (Read-Answer "Worker name [$def]").Trim()
             if (-not $w) { $w = $def }
             if ($w -notmatch '^[A-Za-z0-9._-]{1,64}$') { Write-Host "Only letters, digits, dot, dash and underscore. Using $def."; $w = $def }
             Set-ConfValue $ConfPath 'PRL_WORKER' $w
@@ -260,7 +261,7 @@ function Invoke-Status {
     $agent = 'agent not running'; if (Test-AgentRunning) { $agent = 'agent running' }
     Write-Host "Mode:   $mode ($mining, $agent)"
     if (Test-NvidiaSmi) {
-        Invoke-Nvsmi --query-gpu=index,name,temperature.gpu,power.draw,power.limit,utilization.gpu,fan.speed --format=csv,noheader |
+        Invoke-Nvsmi '--query-gpu=index,name,temperature.gpu,power.draw,power.limit,utilization.gpu,fan.speed' '--format=csv,noheader' |
             ForEach-Object {
                 $f = $_ -split ', '
                 if ($f.Count -ge 7) { Write-Host ("GPU {0}:  {1}  {2} C  {3} / {4}  load {5}  fan {6}" -f $f[0], $f[1], $f[2], $f[3], $f[4], $f[5], $f[6]) }

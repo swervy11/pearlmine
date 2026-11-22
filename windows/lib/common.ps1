@@ -86,9 +86,11 @@ function Test-SeedLike([string]$Text) {
     return ($w.Count -ge 8)
 }
 
-# A pool worker name from a computer name: lowercase, only [a-z0-9._-], at most 32 characters.
+# A pool worker name from a GPU model, e.g. "NVIDIA GeForce RTX 4070 SUPER" -> "rtx4070super".
+# Worker names are public on the pool page, so the default never uses the computer or user name.
 function ConvertTo-WorkerName([string]$Name, [string]$Default = 'pc1') {
-    $n = ($Name.ToLowerInvariant() -replace '[^a-z0-9._-]+', '-').Trim('-', '.', '_')
+    $n = ($Name.ToLowerInvariant() -replace '\b(nvidia|geforce|amd|radeon|intel|graphics|corporation)\b', '')
+    $n = ($n -replace '\s+', '' -replace '[^a-z0-9._-]+', '-').Trim('-', '.', '_')
     if ($n.Length -gt 32) { $n = $n.Substring(0, 32).Trim('-', '.', '_') }
     if (-not $n) { return $Default }
     return $n
@@ -244,6 +246,8 @@ function Test-NvidiaSmi { return [bool](Get-Command nvidia-smi -ErrorAction Sile
 
 # Run nvidia-smi and return its stdout lines. Never throws: Windows PowerShell 5.1 turns stderr
 # into terminating errors when the caller uses ErrorActionPreference=Stop, so shield it here.
+# Callers must QUOTE every argument: unquoted, --format=csv,noheader reaches a function as two
+# array elements and nvidia-smi rejects "noheader".
 function Invoke-Nvsmi {
     if (-not (Test-NvidiaSmi)) { return @() }
     $old = $ErrorActionPreference; $ErrorActionPreference = 'Continue'
@@ -255,15 +259,22 @@ function Invoke-Nvsmi {
 function Get-GpuList($Conf) {
     $spec = Get-Opt $Conf 'GPUS' 'all'
     if ($spec -eq 'all') {
-        return @(Invoke-Nvsmi --query-gpu=index --format=csv,noheader | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' })
+        return @(Invoke-Nvsmi '--query-gpu=index' '--format=csv,noheader' | ForEach-Object { $_.Trim() } | Where-Object { $_ -match '^\d+$' })
     }
     return @(Split-List $spec | Where-Object { $_ -match '^\d+$' })
+}
+
+# Suggested worker name: the first GPU's model, or $Default when nvidia-smi is not available.
+function Get-DefaultWorker([string]$Default = 'pc1') {
+    $g = @(Invoke-Nvsmi '--query-gpu=name' '--format=csv,noheader') | Select-Object -First 1
+    if (-not $g) { return $Default }
+    return ConvertTo-WorkerName $g $Default
 }
 
 function Get-RawGpuApps($Conf) {
     $ids = @(Get-GpuList $Conf)
     if ($ids.Count -eq 0) { return @() }
-    return @(Invoke-Nvsmi -i ($ids -join ',') --query-compute-apps=process_name --format=csv,noheader)
+    return @(Invoke-Nvsmi '-i' ($ids -join ',') '--query-compute-apps=process_name' '--format=csv,noheader')
 }
 
 # ---- PATH ----------------------------------------------------------------
