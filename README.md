@@ -27,6 +27,16 @@ git clone https://github.com/swervy11/pearlmine.git && cd pearlmine && ./pearlmi
 
 Both versions use the same commands and the same style of `pearlmine.conf`. The rest of this page covers Linux. The [Windows guide](windows/README.md#how-it-differs-from-linux) lists what differs.
 
+## Before you start: get a Pearl wallet
+
+pearlmine does **not** create a wallet. It only needs your wallet's public receive address, and the pool pays straight to that address. The wallet can be on any computer.
+
+1. Download the official **Pearl Wallet** from the [Pearl releases page](https://github.com/pearl-research-labs/pearl/releases). Pick a release named "Pearl Wallet" (the newest one may be the node instead). There is a Windows installer (`Pearl-Wallet-Setup-*.exe`), a Mac `.dmg` and a Linux `.deb`, plus a `checksums.txt` to check the download against.
+2. Create a new wallet and **write the seed words on paper**. Anyone with those words can take your coins, and without them a lost wallet cannot be recovered. Never type them into pearlmine, a website or a chat.
+3. Copy the receive address. It starts with `prl1p` and is 63 characters long. That address goes in `PRL_WALLET`.
+
+Mining from several computers? Use the same address on all of them, with a different `PRL_WORKER` name on each. The pool adds them up.
+
 ## What it does
 
 - **Schedules mining.** A nightly window, plus an optional second window on the days you choose.
@@ -46,7 +56,7 @@ For Windows, see [windows/README.md](windows/README.md).
 
 - Linux with systemd, and `sudo` for installing the units
 - `bash`, `curl`, `python3`
-- A Pearl receive address
+- A Pearl receive address (see [Before you start](#before-you-start-get-a-pearl-wallet))
 - A GPU that WildRig supports for the `pearlhash` algorithm
 
 **GPU support**

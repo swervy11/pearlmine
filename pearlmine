@@ -114,6 +114,7 @@ case "${1:-status}" in
       echo "Ready. Start with: pearlmine auto   (or: pearlmine on)"
     else
       echo "Next: open pearlmine.conf, set PRL_WALLET to your public receive address, then run: pearlmine auto"
+      echo "No wallet yet? pearlmine does not create one. See \"Before you start\" in README.md."
     fi
     ;;
   auto|night)

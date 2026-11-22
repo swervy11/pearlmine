@@ -176,7 +176,10 @@ function Invoke-Setup {
     if (-not (Get-MinerExe)) { Invoke-FetchMiner '' }
     $c = Read-PearlConf
     if (Test-Wallet (Get-Opt $c 'PRL_WALLET')) { Write-Host 'Ready. Start with: pearlmine auto   (or: pearlmine on)' }
-    else { Write-Host "Next: run 'notepad `"$ConfPath`"', set PRL_WALLET to your public receive address, then run: pearlmine auto" }
+    else {
+        Write-Host "Next: run 'notepad `"$ConfPath`"', set PRL_WALLET to your public receive address, then run: pearlmine auto"
+        Write-Host "No wallet yet? pearlmine does not create one. See 'Before you start' in the README on GitHub."
+    }
 }
 
 function Invoke-Start([string]$Mode) {

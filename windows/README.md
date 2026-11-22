@@ -11,6 +11,8 @@ pearlmine status
 
 ## Install
 
+You need a Pearl wallet address first. pearlmine does not create one: get the official Pearl Wallet and write down its seed words, as in [Before you start](../README.md#before-you-start-get-a-pearl-wallet).
+
 Open **PowerShell** (Start menu, type `powershell`; administrator is not needed) and paste:
 
 ```powershell
